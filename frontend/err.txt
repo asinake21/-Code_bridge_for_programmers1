@@ -1,0 +1,26 @@
+
+> code-bridge-frontend@0.0.0 build
+> vite build
+
+[36mvite v4.5.14 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1268 modules transformed.
+[32m✓ built in 5.49s[39m
+[31m"CloudUpload" is not exported by "node_modules/lucide-react/dist/esm/lucide-react.mjs", imported by "src/data/courses.js".[39m
+file: [36mC:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge - Copy/code-bridge/frontend/src/data/courses.js:1:112[39m
+[33m1: import { Layout, Monitor, Code, Layers, Server, Globe, Share2, Lock, Database, Box, Table, GitMerge, Briefcase, CloudUploa...
+                                                                                                                   ^
+2: 
+3: // Map of string icon names to Lucide components for dynamic rendering[39m
+[31merror during build:
+RollupError: "CloudUpload" is not exported by "node_modules/lucide-react/dist/esm/lucide-react.mjs", imported by "src/data/courses.js".
+    at error (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:2287:30)
+    at Module.error (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:13751:16)
+    at Module.traceVariable (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:14181:29)
+    at ModuleScope.findVariable (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:12621:39)
+    at Identifier.bind (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:8325:40)
+    at Property.bind (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:5898:23)
+    at ObjectExpression.bind (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:5894:28)
+    at VariableDeclarator.bind (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:5898:23)
+    at VariableDeclaration.bind (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:5894:28)
+    at ExportNamedDeclaration.bind (file:///C:/Users/asina/OneDrive/Desktop/Vscode/CodeBridge%20-%20Copy/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:10679:27)[39m

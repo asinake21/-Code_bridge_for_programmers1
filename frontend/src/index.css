@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans antialiased transition-all duration-300;
+  }
+}
+
+@layer components {
+  /* Note: Replaced custom colors with native Tailwind variants to support dark mode globally */
+}

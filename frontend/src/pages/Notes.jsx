@@ -1,0 +1,73 @@
+import NoteCard from '../components/NoteCard'
+
+const Notes = () => {
+  const notes = [
+    {
+      id: 1,
+      title: 'Variables in Python',
+      topic: 'Python Basics',
+      content: 'Variables are containers for storing data values. In Python, you don\'t need to declare the type.',
+      codeExample: `name = "John"\nage = 25\nis_student = True\n\nprint(name)  # Output: John`,
+      tips: ['Use descriptive names', 'Variables are case-sensitive', 'Can change type anytime'],
+    },
+    {
+      id: 2,
+      title: 'If-Else Statements',
+      topic: 'Control Flow',
+      content: 'Conditional statements execute different code based on conditions.',
+      codeExample: `age = 18\n\nif age >= 18:\n    print("You can vote")\nelse:\n    print("Too young to vote")\n\n# Multiple conditions\nif age < 13:\n    print("Child")\nelif age < 20:\n    print("Teenager")\nelse:\n    print("Adult")`,
+      tips: ['Use == for comparison', 'Indentation matters', 'elif for multiple conditions'],
+    },
+    {
+      id: 3,
+      title: 'For Loops',
+      topic: 'Loops',
+      content: 'For loops iterate over a sequence (list, tuple, string) or other iterable objects.',
+      codeExample: `# Loop through a list\nfruits = ["apple", "banana", "cherry"]\nfor fruit in fruits:\n    print(fruit)\n\n# Loop with range\nfor i in range(5):\n    print(i)  # 0, 1, 2, 3, 4\n\n# Loop with index\nfor index, fruit in enumerate(fruits):\n    print(f"{index}: {fruit}")`,
+      tips: ['Use range() for numbers', 'enumerate() gives index', 'Can loop through strings'],
+    },
+    {
+      id: 4,
+      title: 'Functions',
+      topic: 'Functions',
+      content: 'Functions are reusable blocks of code that perform a specific task.',
+      codeExample: `def greet(name):\n    return f"Hello, {name}!"\n\n# Call the function\nmessage = greet("Student")\nprint(message)  # Hello, Student!\n\n# Function with multiple parameters\ndef add_numbers(a, b):\n    return a + b\n\nresult = add_numbers(5, 3)\nprint(result)  # 8`,
+      tips: ['def keyword to define', 'Parameters in parentheses', 'return sends back values'],
+    },
+    {
+      id: 5,
+      title: 'Lists in Python',
+      topic: 'Data Structures',
+      content: 'Lists are ordered, mutable collections that can contain different data types.',
+      codeExample: `# Create a list\nnumbers = [1, 2, 3, 4, 5]\nfruits = ["apple", "banana", "cherry"]\n\n# Access elements\nprint(numbers[0])  # 1\nprint(fruits[1])   # banana\n\n# Modify elements\nfruits[1] = "orange"\nprint(fruits)  # ['apple', 'orange', 'cherry']\n\n# Add elements\nfruits.append("grape")\nprint(fruits)  # ['apple', 'orange', 'cherry', 'grape']`,
+      tips: ['Zero-based indexing', 'append() adds to end', 'Can mix data types'],
+    },
+    {
+      id: 6,
+      title: 'JavaScript Variables',
+      topic: 'JavaScript Basics',
+      content: 'In JavaScript, variables are declared with let, const, or var keywords.',
+      codeExample: `// Modern way (ES6+)\nlet name = "John";\nconst age = 25;\nvar isOld = false;  // Avoid using var\n\n// Template literals\nconsole.log(\`Hello, \${name}! You are \${age} years old.\`);\n\n// Arrays\nconst numbers = [1, 2, 3, 4, 5];\nconsole.log(numbers[0]);  // 1`,
+      tips: ['Use const for constants', 'let for changeable variables', 'Avoid var in modern code'],
+    },
+  ]
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-text mb-4">Study Notes</h1>
+        <p className="text-text-secondary text-lg">
+          Quick reference guides for programming concepts. Simple, clear, and beginner-friendly.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {notes.map((note) => (
+          <NoteCard key={note.id} note={note} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default Notes
