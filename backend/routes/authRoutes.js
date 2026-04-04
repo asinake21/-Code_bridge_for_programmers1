@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const { protect, admin } = require('../middleware/authMiddleware');
+const Progress = require('../models/Progress');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret', {
@@ -145,12 +146,38 @@ router.put('/password', protect, async (req, res) => {
   }
 });
 
+// @route   GET /api/auth/export
+// @access  Private
+router.get('/export', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Aggregate user data to export
+    const progress = await Progress.find({ userId: user._id }).populate('courseId', 'title description');
+    
+    const exportData = {
+      profile: user,
+      learningProgress: progress,
+      exportedAt: new Date().toISOString()
+    };
+    
+    res.json(exportData);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // @route   DELETE /api/auth/profile
 // @access  Private
 router.delete('/profile', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (user) {
+      // Clean up Progress
+      await Progress.deleteMany({ userId: user._id });
       // Use deleteOne instead of remove
       await User.deleteOne({ _id: user._id });
       res.json({ message: 'Account deleted successfully' });

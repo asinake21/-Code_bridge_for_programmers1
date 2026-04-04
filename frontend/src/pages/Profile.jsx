@@ -3,7 +3,7 @@ import { Moon, Sun, Globe, User, Bell, Shield, Loader2, Save } from 'lucide-reac
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useLanguage } from '../context/LanguageContext'
-import { updateProfile, updatePassword, deleteAccount } from '../api/auth'
+import { updateProfile, updatePassword, deleteAccount, exportUserData } from '../api/auth'
 import { useNavigate } from 'react-router-dom'
 import { translations } from '../data/translations'
 
@@ -82,6 +82,25 @@ const Profile = () => {
       } catch (err) {
         alert(err.message)
       }
+    }
+  }
+
+  const handleDownloadData = async () => {
+    try {
+      const data = await exportUserData(token)
+      // Create and download file
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const timestamp = new Date().toISOString().slice(0, 10)
+      a.download = `code_bridge_export_${user?.name?.replace(/\s+/g, '_') || 'data'}_${timestamp}.json`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      alert(`Error exporting data: ${err.message}`)
     }
   }
 
@@ -248,7 +267,9 @@ const Profile = () => {
               </form>
             )}
 
-            <button className="w-full text-left px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white hover:border-blue-500 transition-colors font-medium">
+            <button 
+              onClick={handleDownloadData}
+              className="w-full text-left px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white hover:border-blue-500 transition-colors font-medium">
               {t.download_data}
             </button>
             <button 

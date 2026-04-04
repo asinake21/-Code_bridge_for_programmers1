@@ -79,7 +79,7 @@ router.post("/chat", async (req, res) => {
       const completion = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [
-          { role: "system", content: "Explain clearly for beginners." },
+          { role: "system", content: "Explain clearly for beginners. Respond naturally and directly. Do not say phrases like 'as you see' or refer to the conversation itself." },
           { role: "user", content: inputText || "Hello" },
         ],
       });

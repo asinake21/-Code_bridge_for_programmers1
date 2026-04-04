@@ -8,16 +8,17 @@ const API = axios.create({
 
 export const chatWithAI = async (message, language = "en") => {
   try {
-    const res = await axios.post("http://localhost:5001/api/ai/chat", {
-      message,
-      language,
+    const res = await fetch(`${API_BASE_URL}/ai/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, language })
     });
-    return res.data.reply;
+    if (!res.ok) throw new Error("API error");
+    const data = await res.json();
+    return data.reply;
   } catch (err) {
-    if (err.response && err.response.data && err.response.data.error) {
-      throw new Error(err.response.data.error);
-    }
-    throw err;
+    console.error("AI Chat API Error:", err);
+    throw new Error("Failed to connect to AI server");
   }
 };
 

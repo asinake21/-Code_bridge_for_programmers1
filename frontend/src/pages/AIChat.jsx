@@ -12,6 +12,8 @@ const AIChat = () => {
   
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const transcriptRef = useRef("");
 
   // Auto-scroll to the bottom of the chat
   useEffect(() => {
@@ -32,11 +34,24 @@ const AIChat = () => {
 
     recognition.onresult = (event) => {
       const transcript = event.results[event.results.length - 1][0].transcript;
-      setInput((prev) => prev + (prev ? " " : "") + transcript);
+      setInput((prev) => {
+        const newVal = prev + (prev ? " " : "") + transcript;
+        transcriptRef.current = newVal;
+        return newVal;
+      });
+
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = setTimeout(() => {
+        recognition.stop();
+      }, 2000);
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      clearTimeout(silenceTimerRef.current);
+      if (transcriptRef.current.trim()) {
+        sendMessage(transcriptRef.current);
+      }
     };
 
     return recognition;
@@ -60,6 +75,7 @@ const AIChat = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
+    clearTimeout(silenceTimerRef.current);
     setIsListening(false);
   };
 
@@ -87,17 +103,21 @@ const AIChat = () => {
   };
 
   // 🧠 SEND MESSAGE
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+  const sendMessage = async (overrideText) => {
+    const textToSend = typeof overrideText === "string" ? overrideText : input;
+    if (!textToSend.trim() || loading) return;
+
+    // Clear state early to avoid onend re-sending
+    setInput("");
+    transcriptRef.current = "";
 
     // Stop recording when sending a message
     stopRecording();
 
-    const userMessage = { role: "user", content: input };
-    const userPromptText = input;
+    const userMessage = { role: "user", content: textToSend };
+    const userPromptText = textToSend;
 
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
     setLoading(true);
 
     try {
@@ -233,7 +253,10 @@ const AIChat = () => {
           {/* INPUT */}
           <input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              transcriptRef.current = e.target.value;
+            }}
             onKeyDown={handleKeyDown}
             placeholder={
               language === "am"
@@ -267,8 +290,8 @@ const AIChat = () => {
 
           {/* SEND */}
           <button
-            onClick={sendMessage}
-            disabled={!input.trim() || loading}
+            onClick={() => sendMessage()}
+            disabled={!input.trim() || loading || isListening}
             className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md flex-shrink-0"
             title="Send Message"
           >
@@ -276,9 +299,15 @@ const AIChat = () => {
           </button>
         </div>
         {isListening && (
-           <p className="text-xs text-green-600 mt-2 text-center animate-pulse">
-             Listening... (click stop when done)
-           </p>
+           <div className="flex justify-center items-center gap-2 mt-2">
+             <div className="flex gap-0.5 items-end h-3">
+               <div className="w-1 bg-green-500 rounded animate-[bounce_1s_infinite_100ms] h-full"></div>
+               <div className="w-1 bg-green-500 rounded animate-[bounce_1s_infinite_200ms] h-1/2"></div>
+               <div className="w-1 bg-green-500 rounded animate-[bounce_1s_infinite_300ms] h-3/4"></div>
+               <div className="w-1 bg-green-500 rounded animate-[bounce_1s_infinite_400ms] h-full"></div>
+             </div>
+             <p className="text-xs text-green-600 font-medium animate-pulse">Listening...</p>
+           </div>
         )}
       </div>
     </div>

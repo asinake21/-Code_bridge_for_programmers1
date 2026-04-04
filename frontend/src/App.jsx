@@ -19,8 +19,12 @@ import AdminDashboard from './pages/AdminDashboard'
 import PrivateRoute from './components/PrivateRoute'
 import { AuthProvider } from './context/AuthContext'
 
+import { useLanguage } from './context/LanguageContext'
+import Help from './pages/Help'
+
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { language: lang } = useLanguage()
 
   return (
     <AuthProvider>
@@ -32,7 +36,8 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
-            <Route path="/about" element={<About />} />
+            <Route path="/about" element={<About lang={lang} />} />
+            <Route path="/help" element={<Help lang={lang} />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             

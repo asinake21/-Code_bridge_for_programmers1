@@ -111,3 +111,13 @@ export const deleteAdminUser = async (id, token) => {
   });
   return handleResponse(response);
 };
+// Export data
+export const exportUserData = async (token) => {
+  const response = await fetch(`${API_URL}/export`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleResponse(response);
+};
