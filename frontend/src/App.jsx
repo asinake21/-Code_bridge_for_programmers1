@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar'
 import Home from './pages/Home'
 import AIChat from './pages/AIChat'
 import Courses from './pages/Courses'
+import CoursePage from './pages/CoursePage'
 import CourseDetail from './pages/CourseDetail'
 import Notes from './pages/Notes'
 import Downloads from './pages/Downloads'
@@ -39,7 +40,8 @@ function App() {
             <Route element={<PrivateRoute />}>
               <Route path="/ai-assistant" element={<AIChat />} />
               <Route path="/courses" element={<Courses />} />
-              <Route path="/courses/:id" element={<CourseDetail />} />
+              <Route path="/courses/:id" element={<CoursePage />} />
+              <Route path="/course/:id" element={<CourseDetail />} />
               <Route path="/notes" element={<Notes />} />
               <Route path="/downloads" element={<Downloads />} />
               <Route path="/profile" element={<Profile />} />

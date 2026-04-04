@@ -4,7 +4,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(cors());
@@ -23,8 +23,22 @@ mongoose.connect(MONGODB_URI, {
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
+app.use('/api/progress', require('./routes/progressRoutes'));
 app.use('/api/courses', require('./routes/courseRoutes'));
+app.use('/api/lessons', require('./routes/lessonRoutes'));
+app.use('/api/quizzes', require('./routes/quizRoutes'));
 app.use('/api/downloads', require('./routes/downloadRoutes'));
+
+// Code Runner route
+app.post('/run', async (req, res) => {
+  const { code } = req.body;
+  try {
+    const result = eval(code);
+    res.json({ output: String(result) });
+  } catch (err) {
+    res.json({ output: err.message });
+  }
+});
 
 // Basic route
 app.get('/', (req, res) => {

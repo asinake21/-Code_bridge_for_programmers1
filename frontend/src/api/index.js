@@ -1,11 +1,24 @@
 import axios from "axios";
 
+const API_BASE_URL = "http://localhost:5001/api";
+
 const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: API_BASE_URL,
 });
 
-export const sendMessageToAI = async (message) => {
-  return API.post("/ai/chat", { message });
+export const chatWithAI = async (message, language = "en") => {
+  try {
+    const res = await axios.post("http://localhost:5001/api/ai/chat", {
+      message,
+      language,
+    });
+    return res.data.reply;
+  } catch (err) {
+    if (err.response && err.response.data && err.response.data.error) {
+      throw new Error(err.response.data.error);
+    }
+    throw err;
+  }
 };
 
 export const courseApi = {

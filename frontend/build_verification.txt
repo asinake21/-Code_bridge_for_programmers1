@@ -1,0 +1,17 @@
+
+> code-bridge-frontend@0.0.0 build
+> vite build
+
+[36mvite v4.5.14 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1504 modules transformed.
+[1m[33m[plugin:vite:reporter][39m[22m [33m
+(!) C:/projects/code-bridge/frontend/src/data/courses.js is dynamically imported by C:/projects/code-bridge/frontend/src/pages/Lesson.jsx but also statically imported by C:/projects/code-bridge/frontend/src/pages/CourseDetail.jsx, dynamic import will not move module into another chunk.
+[39m
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                 [39m[1m[2m  0.58 kB[22m[1m[22m[2m │ gzip:   0.37 kB[22m
+[2mdist/[22m[32massets/bg-7bd68f12.avif    [39m[1m[2m 60.16 kB[22m[1m[22m
+[2mdist/[22m[35massets/index-38345f48.css  [39m[1m[2m 39.68 kB[22m[1m[22m[2m │ gzip:   6.79 kB[22m
+[2mdist/[22m[36massets/index-8798229a.js   [39m[1m[2m463.97 kB[22m[1m[22m[2m │ gzip: 149.61 kB[22m
+[32m✓ built in 4.11s[39m

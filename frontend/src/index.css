@@ -1,10 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+* {
+  transition: all 0.2s ease-in-out;
+}
+
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans antialiased transition-all duration-300;
+    font-family: "Noto Sans Ethiopic", sans-serif;
+    @apply bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 antialiased transition-all duration-300;
   }
 }
 

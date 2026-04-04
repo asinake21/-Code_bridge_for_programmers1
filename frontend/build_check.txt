@@ -1,0 +1,28 @@
+
+> code-bridge-frontend@0.0.0 build
+> vite build
+
+[36mvite v4.5.14 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1503 modules transformed.
+[32m✓ built in 3.73s[39m
+[31m"coursesData" is not exported by "src/data/courses.js", imported by "src/pages/CourseDetail.jsx".[39m
+file: [36mC:/projects/code-bridge/frontend/src/pages/CourseDetail.jsx:4:9[39m
+[33m2: import { useParams, useNavigate } from 'react-router-dom'
+3: import { courseApi, downloadApi } from '../api'
+4: import { coursesData } from '../data/courses'
+            ^
+5: 
+6: const CourseDetail = () => {[39m
+[31merror during build:
+RollupError: "coursesData" is not exported by "src/data/courses.js", imported by "src/pages/CourseDetail.jsx".
+    at error (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:2287:30)
+    at Module.error (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:13751:16)
+    at Module.traceVariable (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:14181:29)
+    at ModuleScope.findVariable (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:12621:39)
+    at ReturnValueScope.findVariable (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:7130:38)
+    at ChildScope.findVariable (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:7130:38)
+    at ReturnValueScope.findVariable (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:7130:38)
+    at ChildScope.findVariable (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:7130:38)
+    at ReturnValueScope.findVariable (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:7130:38)
+    at ChildScope.findVariable (file:///C:/projects/code-bridge/frontend/node_modules/rollup/dist/es/shared/node-entry.js:7130:38)[39m
