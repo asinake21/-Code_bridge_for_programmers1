@@ -1,24 +1,52 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
+const cors = require('cors');          // ← Only once here
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Middleware
-app.use(cors());
+// ================== CORS CONFIGURATION FOR VERCEL ==================
+const allowedOrigins = [
+  'https://code-bridge-for-programmers1-5aqmne7tl-asinakes-projects.vercel.app',  // Your live Vercel URL
+  'http://localhost:5173',     // Vite local development (most common)
+  'http://localhost:3000'      // Alternative local port
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+// =================================================================
+
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/codebridge';
+// MongoDB Connection (Improved - fails fast if URI missing)
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI environment variable is missing on Render!');
+  process.exit(1);
+}
+
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.log('MongoDB connection error:', err));
+.then(() => console.log('✅ MongoDB connected successfully'))
+.catch(err => {
+  console.error('❌ MongoDB connection error:', err);
+  process.exit(1);
+});
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
