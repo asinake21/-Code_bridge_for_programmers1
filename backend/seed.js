@@ -89,34 +89,51 @@ async function seed() {
 
     console.log("Adding required courses with MDN integrated professional lessons...");
     for (const data of coursesData) {
-      const course = await Course.create(data);
       
-      const specificLessons = mdnLessons[course.title] || [];
+      const specificLessons = mdnLessons[data.title] || [];
+      const weeks = [];
       
-      if (specificLessons.length > 0) {
-        for (const lesLoc of specificLessons) {
-           await Lesson.create({
-             courseId: course._id,
-             title: lesLoc.title,
-             content_en: lesLoc.content_en,
-             content_am: lesLoc.content_am,
-             exampleCode: lesLoc.exampleCode,
-             mdnLink: lesLoc.mdnLink,
-             videoUrl: lesLoc.videoUrl,
-             order: lesLoc.order
-           });
-        }
-      } else {
-        // Fallback for courses not explicitly mapped in mdnLessons
-        await Lesson.create({ 
-          courseId: course._id, 
-          title: `Introduction to ${course.title}`, 
-          content_en: `Welcome to ${course.title}! This is the core introduction into the concepts.`, 
-          content_am: `እንኳን ወደ ${course.title} በደህና መጡ! ይህ መሠረታዊ መግቢያ ነው።`,
+      // Generate at least 10 weeks dynamically
+      for (let i = 1; i <= 10; i++) {
+        // Base lesson populated heavily from specificLessons if available, fallback otherwise
+        const template = specificLessons[0] || {
+          title: `Introduction to ${data.title}`, 
+          content_en: `Welcome to ${data.title}! This is the core introduction into the concepts for week ${i}.`, 
+          content_am: `እንኳን ወደ ${data.title} በደህና መጡ! ይህ መሠረታዊ መግቢያ ነው። ሳምንት ${i}`,
           videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ", 
-          order: 1 
+          exampleCode: `console.log("Welcome to Week ${i}");`
+        };
+
+        const weekTitle = `Week ${i}: ${template.title || "Foundation"}`;
+        
+        let normalizedLang = data.title.toLowerCase();
+        if (normalizedLang === 'javascript') normalizedLang = 'js';
+        else if (normalizedLang === 'node.js') normalizedLang = 'nodejs';
+        
+        // Push 1 default lesson per week for structure simplicity
+        weeks.push({
+          title: weekTitle,
+          notes: `Learn the core fundamentals and practice building real concepts for ${data.title}.`,
+          codeChallenge: {
+            templateCode: template.exampleCode || `// Write your ${data.title} code here\n`,
+            language: normalizedLang,
+            description: `Build an interactive module utilizing the concepts learned in ${weekTitle}.`
+          },
+          lessons: [{
+            title: template.title,
+            videoUrl: template.videoUrl,
+            notes_en: template.content_en,
+            notes_am: template.content_am,
+            codeExample: template.exampleCode,
+            mdnLink: template.mdnLink || '',
+            notesFile: `http://localhost:5001/uploads/sample-notes.pdf`
+          }]
         });
       }
+
+      // Merge weeks into course directly at creation
+      data.weeks = weeks;
+      const course = await Course.create(data);
 
       await Quiz.create({
         courseId: course._id,

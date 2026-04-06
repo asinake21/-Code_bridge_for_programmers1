@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 5001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static('uploads'));
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/codebridge';
@@ -28,6 +29,7 @@ app.use('/api/courses', require('./routes/courseRoutes'));
 app.use('/api/lessons', require('./routes/lessonRoutes'));
 app.use('/api/quizzes', require('./routes/quizRoutes'));
 app.use('/api/downloads', require('./routes/downloadRoutes'));
+app.use('/api/conversations', require('./routes/conversationRoutes'));
 
 // Code Runner route
 app.post('/run', async (req, res) => {

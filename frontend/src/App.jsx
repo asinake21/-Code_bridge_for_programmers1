@@ -21,6 +21,11 @@ import { AuthProvider } from './context/AuthContext'
 
 import { useLanguage } from './context/LanguageContext'
 import Help from './pages/Help'
+import LearningDashboard from './pages/LearningDashboard'
+import { AIProvider } from './context/AIContext'
+import AIFloatingButton from './components/AIFloatingButton'
+import AIPanel from './components/AIPanel'
+import React from 'react';
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -28,8 +33,9 @@ function App() {
 
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300">
-        <Navbar onMenuClick={() => setSidebarOpen(true)} />
+      <AIProvider>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300">
+          <Navbar onMenuClick={() => setSidebarOpen(true)} />
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         
         <main className="pt-16">
@@ -44,6 +50,7 @@ function App() {
             {/* Protected Routes */}
             <Route element={<PrivateRoute />}>
               <Route path="/ai-assistant" element={<AIChat />} />
+              <Route path="/learn" element={<LearningDashboard />} />
               <Route path="/courses" element={<Courses />} />
               <Route path="/courses/:id" element={<CoursePage />} />
               <Route path="/course/:id" element={<CourseDetail />} />
@@ -58,7 +65,12 @@ function App() {
             </Route>
           </Routes>
         </main>
+
+        {/* Global UI Tools - AI Floating Overlay */}
+        <AIFloatingButton />
+        <AIPanel />
       </div>
+      </AIProvider>
     </AuthProvider>
   )
 }

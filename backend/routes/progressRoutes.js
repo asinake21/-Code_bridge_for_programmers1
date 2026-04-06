@@ -35,12 +35,16 @@ router.post('/', async (req, res) => {
       progress.codeExecutions += 1;
     }
 
-    // A simple calculation for overallPercentage
-    const totalVideos = 5; // Placeholder (dynamic calculation should be done realistically)
-    const totalLessons = 5;
-    const itemsCompleted = progress.completedVideos.length + progress.completedLessons.length + (progress.passedQuizzes ? 1 : 0);
-    const totalItems = totalVideos + totalLessons + 1;
-    progress.overallPercentage = Math.min(100, Math.floor((itemsCompleted / totalItems) * 100));
+    // Calculate overallPercentage dynamically
+    const Course = require('../models/Course');
+    const course = await Course.findById(courseId);
+    if (course) {
+      const totalLessonsInCourse = course.weeks.reduce((acc, week) => acc + (week.lessons?.length || 0), 0);
+      const itemsCompleted = progress.completedLessons.length;
+      progress.overallPercentage = totalLessonsInCourse > 0 
+        ? Math.min(100, Math.floor((itemsCompleted / totalLessonsInCourse) * 100))
+        : 0;
+    }
 
     progress.lastAccessed = Date.now();
     await progress.save();

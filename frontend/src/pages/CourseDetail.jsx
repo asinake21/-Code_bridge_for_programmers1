@@ -1,331 +1,416 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { courses } from "../data/courses";
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import axios from "axios";
+import { jsPDF } from "jspdf";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
-import DownloadButton from "../components/DownloadButton";
-import axios from "axios";
 import { 
-  PlayCircle, ExternalLink, ArrowLeft, BookOpen, Code, 
-  CheckCircle, Circle, Layout, ArrowRight, Book, FileText 
+  PlayCircle, ArrowLeft, BookOpen, Clock, 
+  ChevronDown, ChevronUp, Award, CheckCircle, 
+  FileText, Code, Globe, Sparkles, MessageSquare,
+  Circle, Download, ExternalLink, ShieldCheck
 } from "lucide-react";
+import { translations } from "../data/translations";
+
+const API_URL = "http://localhost:5001/api";
 
 const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { language } = useLanguage();
   const { user } = useAuth();
-  const [activeTopicIndex, setActiveTopicIndex] = useState(0);
-  const [tab, setTab] = useState("notes");
-  const [completedTopics, setCompletedTopics] = useState([]);
+  const t = translations[language] || translations.en;
 
-  const course = courses.find((c) => c.id === id);
+  const [course, setCourse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [openModuleIndex, setOpenModuleIndex] = useState(0);
+  const [completedLessons, setCompletedLessons] = useState([]);
+  const [activeLesson, setActiveLesson] = useState(null);
 
   useEffect(() => {
-    const fetchProgress = async () => {
-      if (course) {
-        if (user) {
-          try {
-            const { data } = await axios.get(`http://localhost:5001/api/progress/${user._id}/${course.id}`);
-            setCompletedTopics(data.completedLessons || []);
-          } catch (err) {
-            console.error("Failed to sync progress:", err);
-            // Fallback to local
-            const progressKey = `progress_${course.id}`;
-            setCompletedTopics(JSON.parse(localStorage.getItem(progressKey)) || []);
-          }
-        } else {
-          // Local fallback for guests
-          const progressKey = `progress_${course.id}`;
-          setCompletedTopics(JSON.parse(localStorage.getItem(progressKey)) || []);
+    const fetchCourseData = async () => {
+      try {
+        const { data } = await axios.get(`${API_URL}/courses/${id}`);
+        setCourse(data);
+        
+        // Load completion state from localStorage
+        const storedProgress = localStorage.getItem(`progress_${id}`);
+        if (storedProgress) {
+          setCompletedLessons(JSON.parse(storedProgress));
         }
+
+        // Set initial active lesson (first uncompleted or first overall)
+        const allLessons = data.weeks?.flatMap(w => w.lessons) || [];
+        const nextToShow = allLessons.find(l => !completedLessons.includes(l._id)) || allLessons[0];
+        setActiveLesson(nextToShow);
+      } catch (err) {
+        console.error("Error fetching course:", err);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchProgress();
-  }, [course, user]);
+    fetchCourseData();
+  }, [id]);
 
-  if (!course) {
+  // Handle Lesson Completion Toggle
+  const toggleLessonStatus = (lessonId, e) => {
+    e.stopPropagation();
+    const newCompleted = completedLessons.includes(lessonId)
+      ? completedLessons.filter(i => i !== lessonId)
+      : [...completedLessons, lessonId];
+    
+    setCompletedLessons(newCompleted);
+    localStorage.setItem(`progress_${id}`, JSON.stringify(newCompleted));
+  };
+
+  // Calculate Progress
+  const totalLessons = course?.weeks?.reduce((acc, w) => acc + (w.lessons?.length || 0), 0) || 0;
+  const progressPercent = totalLessons > 0 ? Math.round((completedLessons.length / totalLessons) * 100) : 0;
+
+  // Handle Continue Learning
+  const handleContinue = () => {
+    const allLessons = course.weeks?.flatMap(w => w.lessons) || [];
+    const nextLesson = allLessons.find(l => !completedLessons.includes(l._id)) || allLessons[0];
+    if (nextLesson) {
+      navigate(`/courses/${id}`);
+    }
+  };
+
+  // Generate Curriculum PDF with jsPDF
+  const handleDownloadCurriculum = () => {
+    const doc = new jsPDF();
+    const primaryColor = "#2563eb";
+    
+    // Header
+    doc.setFillColor(primaryColor);
+    doc.rect(0, 0, 210, 40, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.text("Code Bridge Curriculum", 20, 25);
+    
+    // Body Text
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(18);
+    doc.text(course.title, 20, 55);
+    
+    doc.setFontSize(12);
+    doc.text(`Duration: ${course.duration}`, 20, 65);
+    doc.text(`Level: ${course.level}`, 20, 72);
+    doc.text(`Student Progress: ${progressPercent}% Overall Completion`, 20, 79);
+    
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, 85, 190, 85);
+    
+    // Modules list
+    doc.setFontSize(14);
+    doc.setTextColor(primaryColor);
+    doc.text("Course Modules & Lessons", 20, 95);
+    
+    let yPos = 105;
+    course.weeks.forEach((week, idx) => {
+      if (yPos > 270) { doc.addPage(); yPos = 20; }
+      doc.setTextColor(50, 50, 50);
+      doc.setFontSize(12);
+      doc.text(`Module ${idx + 1}: ${week.title}`, 20, yPos);
+      yPos += 7;
+      
+      week.lessons.forEach((lesson) => {
+        if (yPos > 280) { doc.addPage(); yPos = 20; }
+        const status = completedLessons.includes(lesson._id) ? "[Completed]" : "[Pending]";
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`- ${lesson.title} ${status}`, 30, yPos);
+        yPos += 6;
+      });
+      yPos += 5;
+    });
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text("Generated by Code Bridge AI - Transforming Education for Ethiopian Students.", 20, 285);
+    
+    doc.save(`${course.title}_Curriculum.pdf`);
+  };
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center space-y-4">
-          <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">Course not found</h2>
-          <button 
-            onClick={() => navigate('/courses')}
-            className="text-blue-600 hover:text-blue-700 font-medium"
-          >
-            ← Back to all courses
-          </button>
+      <div className="min-h-screen bg-white dark:bg-slate-950 flex items-center justify-center transition-colors duration-300">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-600 dark:text-slate-400 font-bold text-xl drop-shadow-sm tracking-tight">{t.loading_curriculum}...</p>
         </div>
       </div>
     );
   }
 
-  const topic = course.topics[activeTopicIndex];
-  const progressKey = `progress_${course.id}`;
-
-  const markComplete = async (topicId) => {
-    if (!completedTopics.includes(topicId)) {
-      const newProgress = [...completedTopics, topicId];
-      setCompletedTopics(newProgress);
-      
-      if (user) {
-        try {
-          await axios.post('http://localhost:5001/api/progress', {
-            userId: user._id,
-            courseId: course.id,
-            updateType: 'lesson',
-            itemId: topicId
-          });
-        } catch (err) {
-          console.error("Failed to update progress on server", err);
-        }
-      } else {
-        const progressKey = `progress_${course.id}`;
-        localStorage.setItem(progressKey, JSON.stringify(newProgress));
-      }
-    }
-  };
-
-  const isCompleted = (topicId) => completedTopics.includes(topicId);
-  
-  const progressPercent = Math.round((completedTopics.length / course.topics.length) * 100);
-
-  const handleNext = () => {
-    if (activeTopicIndex < course.topics.length - 1) setActiveTopicIndex(activeTopicIndex + 1);
-  };
-  const handlePrev = () => {
-    if (activeTopicIndex > 0) setActiveTopicIndex(activeTopicIndex - 1);
-  };
+  if (!course) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <h2 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-6">Oops! Course Not Found</h2>
+        <button onClick={() => navigate("/courses")} className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20">
+          <ArrowLeft className="mr-2" /> Back to Dashboard
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-200 transition-colors duration-300 pb-32 font-sans">
       
-      {/* HEADER SECTION */}
-      <div className="bg-gradient-to-r from-slate-900 to-indigo-900 text-white border-b border-indigo-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* 🌌 DYNAMIC HERO */}
+      <div className="relative overflow-hidden border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
+        <div className="absolute inset-x-0 top-0 h-96 bg-gradient-to-b from-blue-600/10 to-transparent pointer-events-none"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-16 relative z-10">
           <button 
-            onClick={() => navigate('/courses')} 
-            className="flex items-center text-indigo-200 hover:text-white mb-4 transition-colors text-sm font-semibold"
+            onClick={() => navigate("/courses")}
+            className="flex items-center text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-white transition-all mb-10 font-bold group"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+            <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" /> 
+            Back to Catalog
           </button>
-          
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2">
-                {course.title}
-              </h1>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-indigo-200 font-medium my-2">
-                <span className="bg-indigo-800/50 px-3 py-1 rounded-full">{course.level}</span>
-                <span>{course.duration}</span>
-                <span>•</span>
-                <span>{course.modules} Modules</span>
-                <span>•</span>
-                <span>{course.topics.length} Lessons</span>
+
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-start">
+            <div className="space-y-8">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="px-4 py-1.5 bg-blue-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-600/20">
+                  <Sparkles size={12} strokeWidth={3} /> {course.level || 'Beginner'}
+                </span>
+                <span className="px-4 py-1.5 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-gray-200 dark:border-slate-700">
+                  <Globe size={12} strokeWidth={3} /> Bilingual (EN/AM)
+                </span>
+              </div>
+              
+              <div>
+                <h1 className="text-5xl md:text-7xl font-black text-gray-900 dark:text-white tracking-tighter leading-[0.95] mb-6">
+                  {course.title}
+                </h1>
+                <p className="text-lg md:text-xl text-gray-600 dark:text-slate-400 leading-relaxed max-w-xl font-medium">
+                  {course.description}
+                </p>
+              </div>
+
+              {/* Progress Summary */}
+              <div className="bg-slate-100 dark:bg-slate-900/60 p-6 rounded-3xl border border-gray-200 dark:border-slate-800 shadow-inner">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-black text-gray-400 uppercase tracking-widest">
+                    Your Course Progress
+                  </span>
+                  <span className="text-xl font-black text-blue-600 dark:text-blue-400">
+                    {progressPercent}%
+                  </span>
+                </div>
+                <div className="h-3 w-full bg-gray-200 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                  <div 
+                    className="h-full bg-blue-600 dark:bg-blue-500 transition-all duration-1000 ease-out shadow-lg"
+                    style={{ width: `${progressPercent}%` }}
+                  ></div>
+                </div>
+                <p className="mt-4 text-xs font-bold text-gray-500 dark:text-slate-500">
+                  {completedLessons.length} of {totalLessons} lessons completed. Keep going!
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-5 pt-4">
+                <button 
+                  onClick={handleContinue}
+                  className="group px-10 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-lg transition-all shadow-2xl shadow-blue-600/30 flex items-center justify-center gap-4 active:scale-95 translate-y-0 hover:-translate-y-1"
+                >
+                  <PlayCircle size={28} className="group-hover:rotate-[360deg] transition-transform duration-700" />
+                  {progressPercent > 0 ? "CONTINUE LEARNING" : "START JOURNEY"}
+                </button>
+                <button 
+                  onClick={handleDownloadCurriculum}
+                  className="px-8 py-5 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-900 dark:text-white rounded-2xl font-black text-sm transition-all border-2 border-gray-200 dark:border-slate-700 flex items-center justify-center gap-3 shadow-xl"
+                >
+                  <Download size={20} strokeWidth={3} />
+                  DOWNLOAD CURRICULUM
+                </button>
               </div>
             </div>
-            
-            {/* Header Progress Bar */}
-            <div className="w-full md:w-64 bg-indigo-950/50 p-4 rounded-xl border border-indigo-500/30">
-              <div className="flex justify-between text-sm font-bold text-indigo-100 mb-2">
-                <span>Course Progress</span>
-                <span>{progressPercent}%</span>
-              </div>
-              <div className="h-2.5 bg-indigo-950 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-green-400 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${progressPercent}%` }}
-                ></div>
-              </div>
+
+            <div className="hidden lg:block sticky top-24 pt-12">
+               <div className="relative group p-10 bg-white dark:bg-slate-900 border-2 border-gray-200 dark:border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full -mr-16 -mt-16 blur-xl"></div>
+                  <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-8 flex items-center gap-3">
+                    <ShieldCheck className="text-blue-600" size={32} />
+                    Learning Guarantee
+                  </h3>
+                  <div className="space-y-6">
+                    {[
+                      { icon: <MessageSquare />, title: "Real-time AI Tutoring", text: "Stuck on a concept? Ask our bot instantly." },
+                      { icon: <FileText />, title: "Bilingual Notes", text: "Download professional PDF notes in EN/AM." },
+                      { icon: <Award />, title: "Official Certification", text: "Get a certificate upon 100% completion." }
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex gap-5">
+                         <div className="w-12 h-12 bg-gray-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-blue-600 shrink-0 shadow-sm border border-gray-200 dark:border-slate-700">
+                           {item.icon}
+                         </div>
+                         <div>
+                            <h4 className="font-black text-gray-900 dark:text-white text-sm uppercase tracking-wide leading-none mb-2">{item.title}</h4>
+                            <p className="text-xs text-gray-500 dark:text-slate-400 font-medium leading-relaxed">{item.text}</p>
+                         </div>
+                      </div>
+                    ))}
+                  </div>
+               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* TWO-COLUMN LAYOUT */}
-      <div className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
-        
-        {/* SIDEBAR: LESSON NAVIGATION */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 sticky top-24 overflow-hidden">
-            <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
-              <h3 className="font-bold text-gray-900 dark:text-white flex items-center">
-                <Layout className="w-5 h-5 mr-2 text-indigo-600" />
-                Course Content
-              </h3>
+      {/* 📚 INTERACTIVE CURRICULUM */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
+        <div className="flex flex-col lg:flex-row gap-16 lg:gap-24">
+          
+          {/* Lessons Side */}
+          <div className="flex-1 space-y-10">
+            <div className="flex items-center justify-between border-b-2 border-gray-100 dark:border-slate-800 pb-8">
+              <div>
+                <h2 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">Course Curriculum</h2>
+                <p className="text-gray-500 dark:text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">
+                  Select a module to see available lessons
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-3xl font-black text-gray-900 dark:text-white leading-none">{totalLessons}</span>
+                <p className="text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-[0.2em]">Total Lessons</p>
+              </div>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto">
-              {course.topics.map((t, index) => {
-                const active = index === activeTopicIndex;
-                const completed = isCompleted(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setActiveTopicIndex(index)}
-                    className={`w-full text-left p-4 flex items-start border-b border-gray-100 dark:border-gray-700 last:border-0 transition-colors ${
-                      active ? "bg-indigo-50 dark:bg-indigo-900/20 border-l-4 border-l-indigo-600" : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    }`}
+
+            <div className="space-y-6">
+              {course.weeks?.map((week, idx) => (
+                <div 
+                  key={idx}
+                  className={`group rounded-3xl transition-all duration-500 overflow-hidden border-2 ${
+                    openModuleIndex === idx 
+                      ? "border-blue-600 bg-white dark:bg-slate-900 shadow-2xl scale-[1.02]" 
+                      : "border-gray-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/30 hover:border-gray-300 dark:hover:border-slate-700"
+                  }`}
+                >
+                  <button 
+                    onClick={() => setOpenModuleIndex(openModuleIndex === idx ? -1 : idx)}
+                    className="w-full px-8 py-7 flex items-center justify-between text-left"
                   >
-                    <div className="mt-0.5 mr-3 flex-shrink-0">
-                      {completed ? (
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                      ) : (
-                        <Circle className={`w-5 h-5 ${active ? "text-indigo-400" : "text-gray-300 dark:text-gray-600"}`} />
-                      )}
+                    <div className="flex items-center gap-6">
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl transition-colors ${
+                        openModuleIndex === idx ? "bg-blue-600 text-white" : "bg-gray-100 dark:bg-slate-800 text-blue-600 dark:text-blue-500 shadow-inner border border-gray-200 dark:border-slate-700"
+                      }`}>
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-gray-900 dark:text-white text-xl tracking-tight">{week.title}</h3>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{week.lessons?.length || 0} Lessons</span>
+                          <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                          <span className="text-xs font-black text-blue-600 dark:text-blue-500 uppercase tracking-widest">
+                            {week.lessons?.filter(l => completedLessons.includes(l._id)).length || 0} Finished
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className={`text-sm font-semibold line-clamp-2 ${active ? "text-indigo-900 dark:text-indigo-300" : "text-gray-700 dark:text-gray-300"}`}>
-                        {index + 1}. {t.title}
-                      </h4>
+                    <div className={`p-2 rounded-full transition-transform duration-500 ${openModuleIndex === idx ? "rotate-180 bg-blue-600 text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-400"}`}>
+                       <ChevronDown size={24} strokeWidth={3} />
                     </div>
                   </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
 
-        {/* MAIN LESSON CONTENT */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            
-            {/* VIDEO FRAME */}
-            <div className="aspect-w-16 aspect-h-9 bg-black relative">
-              <iframe
-                src={topic.video}
-                className="w-full h-[400px] sm:h-[500px]"
-                allowFullScreen
-                title={`Lesson: ${topic.title}`}
-              />
-            </div>
+                  <div className={`transition-all duration-500 ease-in-out ${openModuleIndex === idx ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"}`}>
+                    <div className="px-8 pb-8 pt-2 space-y-4">
+                      {week.lessons?.map((lesson, lIdx) => {
+                        const isCompleted = completedLessons.includes(lesson._id);
+                        const isActive = activeLesson?._id === lesson._id;
 
-            {/* LESSON NAVIGATION HEADER */}
-            <div className="px-6 py-4 flex flex-wrap items-center justify-between border-b border-gray-100 dark:border-gray-700">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {activeTopicIndex + 1}. {topic.title}
-              </h2>
-              
-              {!isCompleted(topic.id) ? (
-                <button
-                  onClick={() => markComplete(topic.id)}
-                  className="mt-2 sm:mt-0 flex items-center bg-gray-100 hover:bg-green-100 text-gray-700 hover:text-green-700 font-bold px-4 py-2 rounded-lg transition-colors border border-gray-200 hover:border-green-300"
-                >
-                  <CheckCircle className="w-5 h-5 mr-2" /> Mark as Complete
-                </button>
-              ) : (
-                <span className="mt-2 sm:mt-0 flex items-center bg-green-100 text-green-800 font-bold px-4 py-2 rounded-lg border border-green-200">
-                  <CheckCircle className="w-5 h-5 mr-2 text-green-600" /> Completed
-                </span>
-              )}
-            </div>
-
-            {/* TABBED INTERFACE */}
-            <div>
-              <div className="flex overflow-x-auto border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
-                <button 
-                  onClick={() => setTab("notes")}
-                  className={`flex items-center px-6 py-4 font-bold text-sm tracking-wide transition-colors ${tab === "notes" ? "text-indigo-600 border-b-2 border-indigo-600 bg-white dark:bg-gray-800" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Lesson Notes
-                </button>
-                <button 
-                  onClick={() => setTab("code")}
-                  className={`flex items-center px-6 py-4 font-bold text-sm tracking-wide transition-colors ${tab === "code" ? "text-indigo-600 border-b-2 border-indigo-600 bg-white dark:bg-gray-800" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
-                >
-                  <Code className="w-4 h-4 mr-2" />
-                  Code Examples
-                </button>
-                <button 
-                  onClick={() => setTab("resources")}
-                  className={`flex items-center px-6 py-4 font-bold text-sm tracking-wide transition-colors ${tab === "resources" ? "text-indigo-600 border-b-2 border-indigo-600 bg-white dark:bg-gray-800" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
-                >
-                  <Book className="w-4 h-4 mr-2" />
-                  Resources
-                </button>
-              </div>
-
-              {/* TAB CONTENT */}
-              <div className="p-6 sm:p-8 min-h-[300px]">
-                
-                {tab === "notes" && (
-                  <div className="prose prose-lg dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
-                    <p className="whitespace-pre-line text-lg leading-relaxed">
-                      {language === "am" ? topic.notes_am : topic.notes_en}
-                    </p>
-                  </div>
-                )}
-
-                {tab === "code" && (
-                  <div className="space-y-4">
-                    {topic.example ? (
-                      <div className="bg-gray-900 rounded-xl overflow-hidden shadow-inner border border-gray-800">
-                        <div className="flex px-4 py-3 bg-gray-800 space-x-2 border-b border-gray-700">
-                          <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        </div>
-                        <pre className="p-6 overflow-x-auto text-green-400 font-mono text-base selection:bg-blue-500 selection:text-white">
-                          <code>{topic.example}</code>
-                        </pre>
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 italic">No code examples for this lesson.</p>
-                    )}
-                  </div>
-                )}
-
-                {tab === "resources" && (
-                  <div className="space-y-6">
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-xl border border-blue-100 dark:border-blue-800">
-                      <h3 className="font-bold text-blue-900 dark:text-blue-100 flex items-center text-lg mb-4">
-                        <BookOpen className="w-5 h-5 mr-2 text-blue-600" />
-                        Explore Further Reading
-                      </h3>
-                      <p className="text-blue-800 dark:text-blue-200 mb-6 font-medium">
-                        Deepen your understanding by reviewing the official documentation and reference material for this topic.
-                      </p>
-                      
-                      <div className="flex flex-col sm:flex-row gap-4">
-                        <button
-                          onClick={() => window.open(topic.reference, "_blank")}
-                          className="flex items-center justify-center bg-blue-600 text-white font-bold px-6 py-3 rounded-lg hover:bg-blue-700 transition shadow-sm"
-                        >
-                          <ExternalLink className="w-5 h-5 mr-2" />
-                          Open Official Docs
-                        </button>
-
-                        {topic.downloadable && (
-                          <DownloadButton file={topic.downloadable} />
-                        )}
-                      </div>
+                        return (
+                          <div 
+                            key={lIdx}
+                            onClick={() => navigate(`/courses/${course._id}`)}
+                            className={`p-6 rounded-2xl border-2 flex items-center justify-between transition-all group cursor-pointer ${
+                              isActive
+                                ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-500/50 shadow-inner"
+                                : "bg-gray-50 dark:bg-slate-800/40 border-gray-100 dark:border-slate-700/50 hover:bg-white dark:hover:bg-slate-800 hover:border-gray-200 dark:hover:border-slate-600"
+                            }`}
+                          >
+                            <div className="flex items-center gap-5">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
+                                isCompleted 
+                                  ? "bg-green-100 dark:bg-green-900/30 border-green-500 text-green-600 dark:text-green-500" 
+                                  : "bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-700 text-gray-400"
+                              }`}>
+                                {isCompleted ? <CheckCircle size={14} strokeWidth={4} /> : <Circle size={14} strokeWidth={3} />}
+                              </div>
+                              <div>
+                                <span className={`font-black text-sm uppercase tracking-wide group-hover:text-blue-600 dark:group-hover:text-blue-500 transition-colors ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-slate-300'}`}>
+                                  {lesson.title}
+                                </span>
+                                {isActive && <span className="ml-3 text-[10px] bg-blue-600 text-white font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Current</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                               <button 
+                                 onClick={(e) => toggleLessonStatus(lesson._id, e)}
+                                 className={`p-2 rounded-lg transition-all border-2 ${
+                                   isCompleted 
+                                     ? "bg-green-600 border-green-600 text-white shadow-lg" 
+                                     : "bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-400 hover:text-green-600 dark:hover:text-green-500 hover:border-green-600/30"
+                                 }`}
+                                 title={isCompleted ? "Mark as Incomplete" : "Mark as Complete"}
+                               >
+                                 <CheckCircle size={18} strokeWidth={3} />
+                               </button>
+                               <ExternalLink size={16} className="text-gray-300 group-hover:text-blue-600 transition-colors" />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                )}
+                </div>
+              ))}
+            </div>
+          </div>
 
+          {/* Benefits Info Side */}
+          <div className="lg:w-96 space-y-8">
+            <div className="bg-white dark:bg-slate-900 border-2 border-gray-100 dark:border-slate-800 rounded-3xl p-10 shadow-2xl shadow-gray-200/50 dark:shadow-none">
+              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-8 border-b-2 border-gray-100 dark:border-slate-800 pb-4">
+                Course Highlights
+              </h3>
+              <ul className="space-y-6">
+                {[
+                  "Full Lifetime Access",
+                  "Certificate of Completion",
+                  "24/7 AI Tutor Support",
+                  "Bilingual Notes (EN/AM)",
+                  "Interactive Code Sandbox",
+                  "Mobile Ready Lessons"
+                ].map((benefit, bIdx) => (
+                  <li key={bIdx} className="flex items-start gap-4">
+                    <div className="bg-green-100 dark:bg-green-900/30 p-1.5 rounded-lg">
+                       <CheckCircle size={16} className="text-green-600 dark:text-green-500 shrink-0" strokeWidth={4} />
+                    </div>
+                    <span className="text-gray-700 dark:text-slate-300 font-bold text-sm leading-tight">{benefit}</span>
+                  </li>
+                ))}
+              </ul>
+              
+              <div className="mt-12 pt-10 border-t-2 border-gray-100 dark:border-slate-800 text-center">
+                <div className="flex flex-col items-center gap-4 mb-6">
+                  <div className="w-20 h-20 rounded-3xl overflow-hidden bg-gray-100 dark:bg-slate-800 border-4 border-white dark:border-slate-800 shadow-xl rotate-3 translate-y-0 hover:rotate-0 transition-all cursor-pointer">
+                     <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${id}`} alt="Instructor" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-xl text-gray-900 dark:text-white tracking-tighter">AI Instructor 1.0</h4>
+                    <p className="text-[10px] text-blue-600 font-black uppercase tracking-[0.3em] mt-1">Code Bridge Team</p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-slate-500 font-bold italic leading-relaxed px-2">
+                  "This curriculum is engineered to transform absolute beginners into job-ready developers using the latest industry standards."
+                </p>
               </div>
             </div>
-
-            {/* PREV / NEXT NAVIGATION */}
-            <div className="p-6 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <button 
-                onClick={handlePrev}
-                disabled={activeTopicIndex === 0}
-                className="flex items-center px-5 py-2.5 font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white border border-gray-300 text-gray-700 hover:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              >
-                <ArrowLeft className="w-5 h-5 mr-2" /> Previous
-              </button>
-
-              <button 
-                onClick={handleNext}
-                disabled={activeTopicIndex === course.topics.length - 1}
-                className="flex items-center px-5 py-2.5 font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
-              >
-                Next Lesson <ArrowRight className="w-5 h-5 ml-2" />
-              </button>
-            </div>
-
           </div>
+
         </div>
       </div>
     </div>

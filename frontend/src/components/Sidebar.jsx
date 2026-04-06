@@ -1,14 +1,26 @@
-import { Link, useLocation } from 'react-router-dom'
-import { X, Info, Settings, HelpCircle } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom';
+import { X, Info, Settings, HelpCircle, Home, LayoutDashboard } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
+import { translations } from '../data/translations';
 
 const Sidebar = ({ isOpen, onClose }) => {
-  const location = useLocation()
+  const location = useLocation();
+  const { user } = useAuth();
+  const { language } = useLanguage();
+  const t = translations[language] || translations["en"];
 
   const sidebarItems = [
-    { path: '/about', label: 'About', icon: Info },
-    { path: '/profile', label: 'Settings', icon: Settings },
-    { path: '/help', label: 'Help', icon: HelpCircle },
-  ]
+    { path: '/', label: t.home, icon: Home },
+    { path: '/about', label: t.about, icon: Info },
+    { path: '/profile', label: t.student_profile, icon: Settings },
+    { path: '/help', label: t.help, icon: HelpCircle },
+  ];
+
+  // Dynamically add Admin Panel if user is admin
+  if (user?.role === 'admin') {
+    sidebarItems.push({ path: '/admin', label: t.admin_panel, icon: LayoutDashboard });
+  }
 
   return (
     <>
@@ -27,7 +39,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         }`}
       >
         <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-xl font-bold tracking-tight">Portal Menu</h2>
+          <h2 className="text-xl font-black tracking-tight uppercase">{t.navigation}</h2>
           <button
             onClick={onClose}
             className="p-2 rounded-md hover:bg-white/10 transition-colors"
@@ -38,7 +50,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
         <nav className="p-4 space-y-1 mt-2">
           {sidebarItems.map((item) => {
-            const Icon = item.icon
+            const Icon = item.icon;
             return (
               <Link
                 key={item.path}
@@ -53,12 +65,12 @@ const Sidebar = ({ isOpen, onClose }) => {
                 <Icon className={`w-5 h-5 ${location.pathname === item.path ? 'text-white' : 'text-slate-400'}`} />
                 <span>{item.label}</span>
               </Link>
-            )
+            );
           })}
         </nav>
       </div>
     </>
-  )
-}
+  );
+};
 
-export default Sidebar
+export default Sidebar;

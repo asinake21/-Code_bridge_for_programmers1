@@ -113,8 +113,13 @@ const Navbar = ({ onMenuClick }) => {
                 {showDropdown && (
                   <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2">
                     <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 mb-2">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{user.name}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                       <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">{user.name}</p>
+                          {user.role === 'admin' && (
+                             <span className="text-[8px] font-black bg-primary text-white px-2 py-0.5 rounded-full tracking-tighter">ADMIN</span>
+                          )}
+                       </div>
+                       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
                     </div>
 
                     {user.role === 'admin' && (

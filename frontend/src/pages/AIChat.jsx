@@ -1,37 +1,83 @@
 import React, { useState, useRef, useEffect } from "react";
+import axios from "axios";
 import { chatWithAI } from "../api";
-import { Send, Bot, User, Mic, Square } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { useAI } from "../context/AIContext";
+import {
+  Send, Bot, User, Mic, Square, Paperclip,
+  Trash2, Menu, Sparkles, BookOpen, Code
+} from "lucide-react";
+import ChatSidebar from "../components/history/ChatSidebar";
+import { useLanguage } from "../context/LanguageContext";
+import { translations } from "../data/translations";
 
-/** COMPLETE AI VOICE + RECORDING CONTROL */
+const API_URL = "http://localhost:5001/api";
+
 const AIChat = () => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
-  const [language, setLanguage] = useState("en");
+  const { language, setLanguage } = useLanguage();
+  const t = translations[language] || translations["en"];
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const { user } = useAuth();
+  const {
+    activeChatId, setActiveChatId, conversations,
+    startNewChat, fetchHistory, updateConversationTitle
+  } = useAI();
+
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
   const silenceTimerRef = useRef(null);
   const transcriptRef = useRef("");
+  const fileInputRef = useRef(null);
 
-  // Auto-scroll to the bottom of the chat
+  // 📖 EFFECT: Load full history when activeChatId changes
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      if (!activeChatId) {
+        setMessages([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const { data } = await axios.get(`${API_URL}/conversations/${activeChatId}`);
+        setMessages(data.messages || []);
+      } catch (err) {
+        console.error("Failed to load conversation history:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadChatHistory();
+  }, [activeChatId]);
+
+  // Auto-scroll logic
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // 🎤 INIT SPEECH RECOGNITION
+  // Handle file selection
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) setSelectedFile(file);
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // 🎤 SPEECH RECOGNITION (Simplified for brevity but functional)
   const initRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
     if (!SpeechRecognition) return null;
-
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.interimResults = false;
-
     recognition.lang = language === "am" ? "am-ET" : "en-US";
-
     recognition.onresult = (event) => {
       const transcript = event.results[event.results.length - 1][0].transcript;
       setInput((prev) => {
@@ -39,43 +85,24 @@ const AIChat = () => {
         transcriptRef.current = newVal;
         return newVal;
       });
-
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = setTimeout(() => {
-        recognition.stop();
-      }, 2000);
     };
-
     recognition.onend = () => {
       setIsListening(false);
-      clearTimeout(silenceTimerRef.current);
-      if (transcriptRef.current.trim()) {
-        sendMessage(transcriptRef.current);
-      }
+      if (transcriptRef.current.trim()) sendMessage(transcriptRef.current);
     };
-
     return recognition;
   };
 
-  // 🎤 START RECORDING
   const startRecording = () => {
     const recognition = initRecognition();
-    if (!recognition) {
-      alert("Speech Recognition not supported in your browser.");
-      return;
-    }
-
+    if (!recognition) return;
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
   };
 
-  // ⏹ STOP RECORDING
   const stopRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    clearTimeout(silenceTimerRef.current);
+    if (recognitionRef.current) recognitionRef.current.stop();
     setIsListening(false);
   };
 
@@ -83,54 +110,59 @@ const AIChat = () => {
   const speakText = (text) => {
     if (!("speechSynthesis" in window)) return;
     const speech = new SpeechSynthesisUtterance(text);
-
     speech.lang = language === "am" ? "am-ET" : "en-US";
-    speech.rate = 0.9;
-
-    const voices = window.speechSynthesis.getVoices();
-    const amVoice = voices.find((v) => v.lang === "am-ET");
-    const enVoice = voices.find((v) => v.lang.includes("en"));
-
-    speech.voice = language === "am" ? amVoice || enVoice : enVoice;
-
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(speech);
-  };
-
-  // ⛔ STOP SPEAKING
-  const stopSpeaking = () => {
-    window.speechSynthesis.cancel();
   };
 
   // 🧠 SEND MESSAGE
   const sendMessage = async (overrideText) => {
     const textToSend = typeof overrideText === "string" ? overrideText : input;
-    if (!textToSend.trim() || loading) return;
+    if ((!textToSend.trim() && !selectedFile) || loading) return;
 
-    // Clear state early to avoid onend re-sending
     setInput("");
     transcriptRef.current = "";
-
-    // Stop recording when sending a message
     stopRecording();
 
-    const userMessage = { role: "user", content: textToSend };
-    const userPromptText = textToSend;
+    let displayContent = textToSend;
+    if (selectedFile) displayContent = `📎 [Attached: ${selectedFile.name}]\n${textToSend}`;
+
+    const userMessage = { role: "user", content: displayContent };
+    const promptText = textToSend;
+    const fileToSend = selectedFile;
+
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
     setMessages((prev) => [...prev, userMessage]);
     setLoading(true);
 
     try {
-      // Connect to port 5001 securely via Code Bridge API wrapper with native language support
-      const aiReply = await chatWithAI(userPromptText, language);
-      
+      let currentId = activeChatId;
+
+      // AUTO-CREATE CHAT if none active
+      if (!currentId) {
+        const newChat = await startNewChat(user?._id);
+        if (newChat) currentId = newChat._id;
+      }
+
+      const userName = user?.name || "Student";
+      const data = await chatWithAI(promptText, language, userName, null, fileToSend, currentId);
+
+      const aiReply = data?.reply || data;
       const aiMessage = { role: "ai", content: aiReply };
       setMessages((prev) => [...prev, aiMessage]);
 
-      // ❌ NO AUTO SPEAK - Custom Request
+      // ✨ Instantly update sidebar title if AI generated one
+      if (data?.generatedTitle && currentId) {
+        updateConversationTitle(currentId, data.generatedTitle);
+      } else {
+        // fallback: light refetch to sync sidebar
+        fetchHistory(user?._id);
+      }
     } catch (err) {
       console.error(err);
-      setMessages((prev) => [...prev, { role: "ai", content: `⚠️ ${err.message || 'Failed to connect to AI API.'}` }]);
+      setMessages((prev) => [...prev, { role: "ai", content: `⚠️ ${err.message || 'Failed to connect.'}` }]);
     } finally {
       setLoading(false);
     }
@@ -144,172 +176,173 @@ const AIChat = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] max-w-5xl mx-auto shadow-sm bg-gray-50 dark:bg-gray-900 border-x border-gray-200 dark:border-gray-800">
+    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-gray-50 dark:bg-[#0f172a] transition-colors duration-300">
 
-      {/* HEADER WITH 🌍 LANGUAGE + STOP VOICE */}
-      <div className="flex justify-between items-center px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md">
-            <Bot size={24} />
-          </div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white">AI Tutor</h2>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 outline-none cursor-pointer focus:ring-2 focus:ring-blue-500 font-medium uppercase tracking-wide"
-          >
-            <option value="en">English (EN)</option>
-            <option value="am">አማርኛ (AM)</option>
-          </select>
-          
-          <button
-            onClick={stopSpeaking}
-            className="bg-red-500 hover:bg-red-600 text-white font-medium text-sm px-3 py-2 rounded-lg transition-colors shadow-sm"
-          >
-            Stop Voice
-          </button>
-        </div>
-      </div>
+      {/* 📜 SIDEBAR HISTORY */}
+      <ChatSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      {/* 💬 CHAT MESSAGES */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
-        {messages.length === 0 && (
-          <div className="text-center mt-10 text-gray-500 dark:text-gray-400">
-             {language === 'am' ? 'ሰላም ይበሉና መወያየት ይጀምሩ!' : 'Say "Hello" or select a language to start chatting!'}
-          </div>
-        )}
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div className={`flex gap-3 max-w-[85%] md:max-w-[75%] ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-              {/* Avatar */}
-              <div className="flex-shrink-0 mt-1">
-                {msg.role === "user" ? (
-                  <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                    <User size={16} className="text-gray-600 dark:text-gray-400" />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-blue-600/10 flex items-center justify-center">
-                    <Bot size={18} className="text-blue-600 dark:text-blue-400" />
-                  </div>
-                )}
+      {/* 💬 MAIN CHAT AREA */}
+      <main className="flex-1 flex flex-col min-w-0 relative">
+
+        {/* HEADER */}
+        <div className="flex justify-between items-center px-4 md:px-8 py-4 bg-white dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-800 backdrop-blur-md sticky top-0 z-10">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition-colors text-gray-500"
+            >
+              <Menu size={24} />
+            </button>
+            <div className="hidden sm:flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
+                <Bot size={24} />
               </div>
-              
-              <div className="flex flex-col gap-1 items-start">
-                <div
-                  className={`py-3 px-5 shadow-sm rounded-2xl whitespace-pre-wrap leading-relaxed ${
-                    msg.role === "user"
-                      ? "bg-blue-600 text-white rounded-tr-sm"
-                      : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700/50 rounded-tl-sm ring-1 ring-black/5"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-                
-                {/* 🔊 VOICE BUTTON ONLY FOR AI */}
-                {msg.role === "ai" && (
-                  <div className="mt-1 flex items-center gap-2">
-                    <button
-                      onClick={() => speakText(msg.content)}
-                      className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 px-2 py-1 rounded transition-colors bg-white/50 dark:bg-gray-800/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium shadow-sm"
-                      title="Read Aloud"
-                    >
-                      🔊 Speak
-                    </button>
-                    
-                    <button
-                      onClick={stopSpeaking}
-                      className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 px-2 py-1 rounded transition-colors bg-white/50 dark:bg-gray-800/50 hover:bg-red-50 dark:hover:bg-red-900/30 font-medium shadow-sm"
-                      title="Stop Audio"
-                    >
-                      ⛔ Stop
-                    </button>
-                  </div>
-                )}
+              <div>
+                <h2 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tight">
+                  {t.ai_assistant_header}
+                </h2>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none">
+                  {t.powered_by_gemini}
+                </p>
               </div>
             </div>
           </div>
-        ))}
-        {loading && (
-           <div className="flex w-full justify-start">
-             <div className="flex gap-3 flex-row pl-11">
-               <div className="text-gray-400 dark:text-gray-500 animate-pulse text-sm font-medium">
-                  Thinking...
-               </div>
-             </div>
-           </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* ✨ INPUT AREA */}
-      <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
-          {/* INPUT */}
-          <input
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              transcriptRef.current = e.target.value;
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              language === "am"
-                ? "መልእክት ይጻፉ..."
-                : "Type a message..."
-            }
-            className="flex-1 bg-transparent border-none outline-none px-4 py-2 text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 min-w-0"
-          />
-
-          {/* 🎤 START */}
-          {!isListening && (
-            <button
-              onClick={startRecording}
-              className="p-3 bg-green-500 hover:bg-green-600 text-white rounded-xl transition-colors shadow-sm flex-shrink-0"
-              title="Start Recording"
+          <div className="flex items-center gap-3">
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="text-xs bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 outline-none cursor-pointer font-black uppercase"
             >
-              <Mic size={20} />
-            </button>
-          )}
-
-          {/* ⏹ STOP */}
-          {isListening && (
+              <option value="en">English</option>
+              <option value="am">አማርኛ</option>
+            </select>
             <button
-              onClick={stopRecording}
-              className="p-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl transition-colors shadow-sm flex-shrink-0 animate-pulse"
-              title="Stop Recording"
+              onClick={() => window.speechSynthesis.cancel()}
+              className="p-2 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all text-xs font-bold"
             >
-              <Square size={20} className="fill-current" />
+              {t.stop_speech}
             </button>
-          )}
-
-          {/* SEND */}
-          <button
-            onClick={() => sendMessage()}
-            disabled={!input.trim() || loading || isListening}
-            className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md flex-shrink-0"
-            title="Send Message"
-          >
-            <Send size={20} className="translate-x-[2px]" />
-          </button>
+          </div>
         </div>
-        {isListening && (
-           <div className="flex justify-center items-center gap-2 mt-2">
-             <div className="flex gap-0.5 items-end h-3">
-               <div className="w-1 bg-green-500 rounded animate-[bounce_1s_infinite_100ms] h-full"></div>
-               <div className="w-1 bg-green-500 rounded animate-[bounce_1s_infinite_200ms] h-1/2"></div>
-               <div className="w-1 bg-green-500 rounded animate-[bounce_1s_infinite_300ms] h-3/4"></div>
-               <div className="w-1 bg-green-500 rounded animate-[bounce_1s_infinite_400ms] h-full"></div>
-             </div>
-             <p className="text-xs text-green-600 font-medium animate-pulse">Listening...</p>
-           </div>
-        )}
-      </div>
+
+        {/* MESSAGES */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 custom-scrollbar">
+          {messages.length === 0 && !loading && (
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 animate-in fade-in zoom-in duration-500">
+              <div className="w-20 h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center text-blue-600 mb-6 border border-blue-600/20">
+                <Sparkles size={40} />
+              </div>
+              <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-4 tracking-tight">
+                {t.empty_state_title}
+              </h1>
+              <p className="text-gray-500 dark:text-slate-400 max-w-md font-medium leading-relaxed">
+                {t.empty_state_desc}
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-12 w-full max-w-lg">
+                {[
+                  { icon: <Code className="text-blue-500" />, text: t.analyze_concepts, color: "bg-blue-500/5" },
+                  { icon: <BookOpen className="text-green-500" />, text: t.curriculum_methodology, color: "bg-green-500/5" }
+                ].map((s, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setInput(s.text)}
+                    className={`flex items-center gap-3 p-4 rounded-2xl border border-gray-200 dark:border-slate-800 hover:border-blue-600/30 transition-all ${s.color} hover:shadow-xl`}
+                  >
+                    {s.icon}
+                    <span className="text-xs font-black text-gray-700 dark:text-slate-300 uppercase tracking-tight">{s.text}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2`}>
+              <div className={`flex gap-4 max-w-[90%] md:max-w-[80%] ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1 shadow-sm ${msg.role === "user" ? "bg-gray-200 dark:bg-slate-800" : "bg-blue-600"}`}>
+                  {msg.role === "user" ? <User size={16} className="text-gray-500" /> : <Bot size={18} className="text-white" />}
+                </div>
+                <div className={`flex flex-col gap-2 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                  <div className={`py-4 px-6 rounded-2xl shadow-sm leading-relaxed text-sm font-medium ${msg.role === "user"
+                      ? "bg-blue-600 text-white rounded-tr-none"
+                      : "bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800 rounded-tl-none ring-1 ring-black/5"
+                    }`}>
+                    {msg.content}
+                  </div>
+                  {msg.role === "ai" && (
+                    <button onClick={() => speakText(msg.content)} className="flex items-center gap-2 text-[10px] font-black text-gray-400 hover:text-blue-600 uppercase tracking-widest pl-2">
+                      {t.listen}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="flex gap-4 animate-pulse">
+              <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-slate-800 flex items-center justify-center"><Bot size={18} className="text-gray-400" /></div>
+              <div className="space-y-2 flex-1">
+                <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded-full w-1/4"></div>
+                <div className="h-4 bg-gray-200 dark:bg-slate-800 rounded-full w-2/3"></div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* INPUT AREA */}
+        <div className="p-4 md:p-8 bg-white dark:bg-slate-900/50 border-t border-gray-200 dark:border-slate-800 backdrop-blur-md">
+          {selectedFile && (
+            <div className="mb-4 p-3 bg-blue-600/10 border border-blue-600/30 rounded-2xl flex items-center justify-between animate-in zoom-in">
+              <div className="flex items-center gap-3 text-xs font-black text-blue-600">
+                <Paperclip size={16} /> <span>{selectedFile.name} ({(selectedFile.size / 1024).toFixed(0)}KB)</span>
+              </div>
+              <button onClick={removeFile} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-lg">
+                <Trash2 size={16} />
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 bg-gray-100 dark:bg-slate-900 border-2 border-transparent focus-within:border-blue-600/30 rounded-[2rem] p-2 transition-all shadow-xl shadow-black/5">
+            <button onClick={() => fileInputRef.current?.click()} className="p-4 text-gray-400 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-all">
+              <Paperclip size={20} />
+            </button>
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={t.type_message_placeholder}
+              className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-sm font-bold text-gray-800 dark:text-white placeholder:text-gray-400"
+            />
+
+            {!isListening ? (
+              <button onClick={startRecording} className="p-4 text-gray-400 hover:text-green-600 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-all">
+                <Mic size={20} />
+              </button>
+            ) : (
+              <button onClick={stopRecording} className="p-4 bg-red-500 text-white rounded-full animate-pulse shadow-lg shadow-red-500/20">
+                <Square size={18} fill="white" />
+              </button>
+            )}
+
+            <button
+              onClick={() => sendMessage()}
+              disabled={(!input.trim() && !selectedFile) || loading}
+              className="p-4 bg-blue-600 text-white rounded-full hover:bg-blue-500 disabled:opacity-30 transition-all shadow-xl shadow-blue-600/30 active:scale-95"
+            >
+              <Send size={20} className="translate-x-[2px]" />
+            </button>
+          </div>
+          <p className="mt-4 text-[10px] text-center text-gray-400 font-extrabold uppercase tracking-[0.2em] opacity-50">
+            {t.footer_info}
+          </p>
+        </div>
+      </main>
     </div>
   );
 };
