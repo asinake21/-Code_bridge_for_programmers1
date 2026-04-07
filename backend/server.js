@@ -38,32 +38,31 @@ app.use(cors({
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// MongoDB Connection (Strict - fails fast for visibility)
+// MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error('❌ CRITICAL: MONGODB_URI environment variable is missing on Render!');
+  console.error('❌ CRITICAL: MONGODB_URI environment variable is missing!');
   process.exit(1);
 }
 
-mongoose.set('bufferCommands', false); // Disable query buffering (no more 10s hangs)
+mongoose.set('bufferCommands', false); // Disable query buffering (no 10s hangs)
 
-const connectDB = async () => {
-  try {
-    await mongoose.connect(MONGODB_URI, {
-      dbName: 'CodeBridge', // Explicitly targeting a specific database
-      serverSelectionTimeoutMS: 5000, 
-    });
-    console.log('✅ MongoDB connected successfully: Connected to CodeBridge database');
-  } catch (err) {
-    console.error('❌ FATAL: MongoDB connection failed!');
-    console.error(`Reason: ${err.message}`);
-    // EXPLAIN: Exiting forces Render to show the error in the 'Deploy' logs immediately.
-    process.exit(1);
-  }
-};
+let isDbConnected = false;
 
-connectDB();
+mongoose.connect(MONGODB_URI, {
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+})
+.then(() => {
+  isDbConnected = true;
+  console.log('✅ MongoDB connected successfully');
+})
+.catch(err => {
+  isDbConnected = false;
+  console.error('❌ MongoDB connection error:', err.message);
+  // Server stays running so Render keeps it alive — DB retries automatically
+});
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -89,7 +88,20 @@ app.post('/run', async (req, res) => {
 
 // Basic route
 app.get('/', (req, res) => {
-  res.json({ message: 'Code Bridge API is running!' });
+  res.json({ 
+    message: 'Code Bridge API is running!',
+    database: isDbConnected ? 'Connected ✅' : 'Disconnected ❌'
+  });
+});
+
+// Health check route — visit /health to confirm DB is connected
+app.get('/health', (req, res) => {
+  const status = isDbConnected ? 200 : 503;
+  res.status(status).json({
+    server: 'running',
+    database: isDbConnected ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Error handling middleware
