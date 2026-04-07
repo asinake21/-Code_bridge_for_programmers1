@@ -13,10 +13,11 @@ const CodeWorkspace = () => {
   const handleRun = async () => {
     setIsLoading(true);
     setOutput("Executing remotely...");
+    const API_BASE = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'http://localhost:5001';
     
     try {
       // Connect to the secure node backend /run compiler endpoint mapped globally
-      const res = await fetch('http://localhost:5001/run', {
+      const res = await fetch(`${API_BASE}/run`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ code })

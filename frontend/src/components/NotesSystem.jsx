@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { translations } from '../data/translations';
 import { downloadApi } from '../api';
 
-const API_URL = 'http://localhost:5001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 const NotesSystem = ({ courseId }) => {
   const [lessons, setLessons] = useState([]);

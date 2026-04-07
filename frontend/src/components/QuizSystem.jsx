@@ -4,7 +4,7 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { translations } from '../data/translations';
 
-const API_URL = 'http://localhost:5001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 const QuizSystem = ({ courseId }) => {
   const [quiz, setQuiz] = useState({ questions: [] });

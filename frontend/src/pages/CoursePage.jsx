@@ -12,7 +12,7 @@ import VideoSection from '../components/course/VideoSection';
 import NotesSection from '../components/course/NotesSection';
 import CodeEditor from '../components/CodeEditor';
 
-const API_URL = 'http://localhost:5001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 const CourseLearningInterface = () => {
   const { id } = useParams();

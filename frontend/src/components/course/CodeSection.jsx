@@ -5,7 +5,7 @@ import { Terminal, Code2, Play } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { translations } from '../../data/translations';
 
-const API_URL = 'http://localhost:5001';
+const API_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'http://localhost:5001';
 
 const CodeSection = ({ exampleCode, courseId, lessonId }) => {
   const { language } = useLanguage();

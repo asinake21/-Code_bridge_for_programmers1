@@ -18,6 +18,8 @@ const Lesson = () => {
   const [output, setOutput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
 
+  const API_BASE = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'http://localhost:5001';
+
   useEffect(() => {
     // Dynamic lesson fetch from standardized dataset
     import('../data/courses').then((module) => {
@@ -35,7 +37,7 @@ const Lesson = () => {
 
       // Save progress
       const userId = localStorage.getItem("userId") || "guest_123";
-      fetch("http://localhost:5001/api/progress", {
+      fetch(`${API_BASE}/api/progress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, courseId, lessonIndex: parseInt(lessonIndex) })
@@ -50,7 +52,7 @@ const Lesson = () => {
     setIsRunning(true);
     setOutput("Running...");
     try {
-      const res = await axios.post("http://localhost:5001/run", { code });
+      const res = await axios.post(`${API_BASE}/run`, { code });
       setOutput(res.data.output);
     } catch (err) {
       setOutput(err.message || "Failed to execute code");
