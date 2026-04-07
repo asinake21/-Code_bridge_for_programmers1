@@ -72,16 +72,25 @@ exports.askAI = async (req, res) => {
     }
 
     try {
-      // 🚀 Gemini Multimodal Call
-      const result = await geminiModel.generateContent({
+      console.time("Gemini Response Time");
+      
+      // 🚀 Gemini Multimodal Call with Timeout
+      const aiPromise = geminiModel.generateContent({
         contents: [{ role: "user", parts }],
         generationConfig,
       });
-      const reply = result.response.text();
 
-      // 💾 Persistent Storage: Update conversation if ID exists
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("AI_TIMEOUT")), 15000)
+      );
+
+      const result = await Promise.race([aiPromise, timeoutPromise]);
+      const reply = result.response.text();
+      console.timeEnd("Gemini Response Time");
+
+      // 💾 Persistent Storage: Update conversation if ID exists (ONLY if DB is connected)
       let generatedTitle = null;
-      if (conversationId) {
+      if (conversationId && mongoose.connection.readyState === 1) {
         try {
           const conversation = await Conversation.findById(conversationId);
           if (conversation) {
@@ -125,6 +134,8 @@ exports.askAI = async (req, res) => {
         } catch (saveError) {
           console.error("FAILED TO SAVE TO HISTORY:", saveError.message);
         }
+      } else if (conversationId) {
+        console.warn("⚠️ Skipping history save: Database not connected.");
       }
 
       return res.json({ reply, generatedTitle });
@@ -134,6 +145,7 @@ exports.askAI = async (req, res) => {
       // 🔄 Fallback to Groq for text-only if Gemini fails (Groq doesn't support files easily in this flow)
       if (file) throw geminiError; // Cannot fallback for files
 
+      console.time("Groq Fallback Time");
       const completion = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [
@@ -145,6 +157,7 @@ exports.askAI = async (req, res) => {
       });
       
       const reply = completion.choices[0].message.content;
+      console.timeEnd("Groq Fallback Time");
       return res.json({ reply });
     }
 

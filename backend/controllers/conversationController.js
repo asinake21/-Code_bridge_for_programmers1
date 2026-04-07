@@ -1,7 +1,11 @@
 const Conversation = require('../models/Conversation');
+const mongoose = require('mongoose');
 
 // 🔍 Create a new conversation
 exports.createConversation = async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: "Database unavailable. History cannot be saved." });
+  }
   try {
     const { title, userId, messages } = req.body;
     const conversation = new Conversation({
@@ -18,6 +22,9 @@ exports.createConversation = async (req, res) => {
 
 // 📃 Get all conversations for a user
 exports.getConversations = async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.json([]); // Return empty list gracefully if DB is down
+  }
   try {
     const { userId } = req.query;
     // If no userId, could return guest history from a specific ID if we wanted, 
@@ -34,6 +41,9 @@ exports.getConversations = async (req, res) => {
 
 // 📖 Get full history for a specific conversation
 exports.getConversationById = async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: "Database unreachable." });
+  }
   try {
     const conversation = await Conversation.findById(req.params.id);
     if (!conversation) return res.status(404).json({ error: "Conversation not found" });
@@ -45,6 +55,9 @@ exports.getConversationById = async (req, res) => {
 
 // 📝 Append a message to an existing conversation
 exports.addMessage = async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: "Database unreachable. History paused." });
+  }
   try {
     const { role, content, fileUrl } = req.body;
     const conversation = await Conversation.findById(req.params.id);
@@ -94,6 +107,9 @@ exports.updateConversation = async (req, res) => {
 
 // 🗑️ Delete conversation
 exports.deleteConversation = async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: "Database unreachable." });
+  }
   try {
     await Conversation.findByIdAndDelete(req.params.id);
     res.json({ message: "Conversation deleted successfully" });

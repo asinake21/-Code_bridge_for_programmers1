@@ -6,18 +6,26 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// ================== CORS CONFIGURATION FOR VERCEL ==================
+// ================== PRODUCTION CORS CONFIGURATION ==================
 const allowedOrigins = [
-  'https://code-bridge-for-programmers1-5aqmne7tl-asinakes-projects.vercel.app',  // Your live Vercel URL
-  'http://localhost:5173',     // Vite local development (most common)
-  'http://localhost:3000'      // Alternative local port
-];
+  process.env.FRONTEND_URL, // Your Vercel URL (set in Render environment variables)
+  'http://localhost:5173',  // Vite local development
+  'http://localhost:3000'   // Alternative local port
+].filter(Boolean); // Remove undefined/null if variable is missing
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowedOrigins or is a Vercel preview URL
+    const isAllowed = allowedOrigins.includes(origin) || 
+                      origin.endsWith('.vercel.app');
+
+    if (isAllowed) {
       callback(null, true);
     } else {
+      console.error(`CORS Error: Origin ${origin} not allowed`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -41,11 +49,12 @@ if (!MONGODB_URI) {
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000, // 5 seconds timeout
 })
 .then(() => console.log('✅ MongoDB connected successfully'))
 .catch(err => {
-  console.error('❌ MongoDB connection error:', err);
-  process.exit(1);
+  console.error('❌ MongoDB connection error:', err.message);
+  console.log('⚠️ Server will continue to run without database connectivity.');
 });
 
 // Routes
