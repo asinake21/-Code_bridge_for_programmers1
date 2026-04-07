@@ -38,24 +38,32 @@ app.use(cors({
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// MongoDB Connection (Improved - fails fast if URI missing)
+// MongoDB Connection (Strict - fails fast for visibility)
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  console.error('❌ MONGODB_URI environment variable is missing on Render!');
+  console.error('❌ CRITICAL: MONGODB_URI environment variable is missing on Render!');
   process.exit(1);
 }
 
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000, // 5 seconds timeout
-})
-.then(() => console.log('✅ MongoDB connected successfully'))
-.catch(err => {
-  console.error('❌ MongoDB connection error:', err.message);
-  console.log('⚠️ Server will continue to run without database connectivity.');
-});
+mongoose.set('bufferCommands', false); // Disable query buffering (no more 10s hangs)
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      dbName: 'CodeBridge', // Explicitly targeting a specific database
+      serverSelectionTimeoutMS: 5000, 
+    });
+    console.log('✅ MongoDB connected successfully: Connected to CodeBridge database');
+  } catch (err) {
+    console.error('❌ FATAL: MongoDB connection failed!');
+    console.error(`Reason: ${err.message}`);
+    // EXPLAIN: Exiting forces Render to show the error in the 'Deploy' logs immediately.
+    process.exit(1);
+  }
+};
+
+connectDB();
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
