@@ -8,38 +8,61 @@ const API = axios.create({
 
 export const chatWithAI = async (message, language = "en", userName = "Student", context = null, file = null, conversationId = null) => {
   try {
-    let body;
-    let headers = {};
-
-    if (file) {
-      // Use FormData for file uploads
-      body = new FormData();
-      if (message) body.append("message", message);
-      body.append("language", language);
-      body.append("userName", userName);
-      if (context) body.append("context", JSON.stringify(context));
-      if (conversationId) body.append("conversationId", conversationId);
-      body.append("file", file);
-      // Let the browser set the boundary for multipart/form-data
-    } else {
-      // Standard JSON
-      headers["Content-Type"] = "application/json";
-      body = JSON.stringify({ message, language, userName, context, conversationId });
+    const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+    if (!GROQ_API_KEY) {
+      throw new Error("Missing VITE_GROQ_API_KEY in frontend .env");
     }
 
-    const res = await fetch(`${API_BASE_URL}/ai/chat`, {
+    let parsedContext = context;
+    if (typeof context === 'string' && context.startsWith('{')) {
+      try { parsedContext = JSON.parse(context); } catch (e) { parsedContext = null; }
+    }
+    const contextPrompt = parsedContext 
+      ? `The student is currently studying: Course "${parsedContext.course || 'Unknown'}", Module "${parsedContext.module || 'Unknown'}".`
+      : "The student is exploring the platform generally.";
+
+    let systemInstruction = `
+      You are the Code Bridge Academic AI Tutor — a highly specialized, formal, and authoritative programming intelligence for the Ethiopian student population.
+      
+      CONTEXT: ${contextPrompt}
+
+      STRICT RULES:
+      1. Tone: Maintain a formal, academic, and professional demeanor at all times. Use structured explanations and industry-standard terminology. (Max 3-4 concise sentences per turn).
+      2. If a file is provided, acknowledge it formally.
+      3. For images: Formally describe the technical architecture or visual components as they relate to development.
+      4. For documents: Synthesize key learning objectives and extract primary concepts.
+      5. Language Consistency: Use the requested language (${language}) exclusively. NEVER mix Amharic and English in the same sentence. 
+      6. No repetition, no informal filler.
+    `;
+
+    if (file) {
+      return { reply: "File uploads are currently unsupported when using Groq exclusively. Please ask your question using text only." };
+    }
+
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers,
-      body,
+      headers: {
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: `Student Name: ${userName}\nUser Message: ${message || "Hello"}` }
+        ],
+        temperature: 0.65,
+        max_tokens: 400
+      })
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.reply || data.error || "API error");
+    if (!res.ok) throw new Error(data.error?.message || "Groq API error");
     
-    return data; // returns { reply, generatedTitle }
+    return { reply: data.choices[0].message.content, generatedTitle: null };
   } catch (err) {
     console.error("AI Chat API Error:", err);
-    throw err; // Preserve the actual error message
+    throw err;
   }
 };
 

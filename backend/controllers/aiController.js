@@ -1,12 +1,8 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 const Groq = require("groq-sdk");
+const mongoose = require("mongoose");
 const Conversation = require("../models/Conversation");
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "dummy");
-const geminiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-// Initialize Groq (Fallback)
+// Initialize Groq
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 exports.askAI = async (req, res) => {
@@ -29,7 +25,7 @@ exports.askAI = async (req, res) => {
       }
     }
 
-    console.log(`[AI Request] (${language}) for ${name} [Context: ${parsedContext?.course || 'General'}] [File: ${file?.originalname || 'None'}]: ${message || '[File Only]'}`);
+    console.log(`[AI Request] (${language}) for ${name} [Context: ${parsedContext?.course || 'General'}]: ${message}`);
 
     // Dynamic Context Injection
     const contextPrompt = parsedContext 
@@ -51,42 +47,25 @@ exports.askAI = async (req, res) => {
       6. No repetition, no informal filler (avoid "Okay", "Cool", "Let's do this").
     `;
 
-    // Gemini Config (User specific)
-    const generationConfig = {
-      temperature: 0.65,
-      topP: 0.9,
-      maxOutputTokens: 400,
-    };
-
-    // Prepare Gemini Parts
-    const parts = [{ text: `${systemInstruction}\n\nStudent Name: ${name}\nUser Message: ${message || "Please analyze this file."}` }];
-    
-    // Add file if exists
-    if (file) {
-      parts.push({
-        inlineData: {
-          mimeType: file.mimetype,
-          data: file.buffer.toString("base64")
-        }
-      });
-    }
-
     try {
-      console.time("Gemini Response Time");
-      
-      // 🚀 Gemini Multimodal Call with Timeout
-      const aiPromise = geminiModel.generateContent({
-        contents: [{ role: "user", parts }],
-        generationConfig,
+      console.time("Groq Response Time");
+
+      if (file) {
+        return res.status(400).json({ reply: "File uploads are currently unsupported when using Groq exclusively. Please ask your question using text only." });
+      }
+
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: `Student Name: ${name}\nUser Message: ${message || "Hello"}` },
+        ],
+        temperature: 0.65,
+        max_tokens: 400,
       });
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("AI_TIMEOUT")), 15000)
-      );
-
-      const result = await Promise.race([aiPromise, timeoutPromise]);
-      const reply = result.response.text();
-      console.timeEnd("Gemini Response Time");
+      const reply = completion.choices[0].message.content;
+      console.timeEnd("Groq Response Time");
 
       // 💾 Persistent Storage: Update conversation if ID exists (ONLY if DB is connected)
       let generatedTitle = null;
@@ -94,7 +73,7 @@ exports.askAI = async (req, res) => {
         try {
           const conversation = await Conversation.findById(conversationId);
           if (conversation) {
-            const currentMessage = message || (file ? `File: ${file.originalname}` : "Research Session");
+            const currentMessage = message || "Research Session";
             
             // ✨ AI-Powered Title Generation: Only on first turn
             const needsTitle = !conversation.title || 
@@ -103,18 +82,15 @@ exports.askAI = async (req, res) => {
             
             if (needsTitle && currentMessage) {
               try {
-                const titleResult = await geminiModel.generateContent({
-                  contents: [{ role: "user", parts: [{ 
-                    text: `Generate a professional, concise academic title (4-6 words max) for a programming tutoring session that started with this inquiry: "${currentMessage.substring(0, 150)}". 
-                    Rules:
-                    - Return ONLY the title, nothing else
-                    - No quotes, no punctuation at the end
-                    - Format like: "React State Management Fundamentals" or "MongoDB Aggregation Pipeline Analysis"
-                    - Be formal and academic`
-                  }] }],
-                  generationConfig: { temperature: 0.3, maxOutputTokens: 20 },
+                const titleCompletion = await groq.chat.completions.create({
+                  model: "llama-3.3-70b-versatile",
+                  messages: [
+                    { role: "user", content: `Generate a professional, concise academic title (4-6 words max) for a programming tutoring session that started with this inquiry: "${currentMessage.substring(0, 150)}". \nRules:\n- Return ONLY the title, nothing else\n- No quotes, no punctuation at the end\n- Format like: "React State Management Fundamentals" or "MongoDB Aggregation Pipeline Analysis"\n- Be formal and academic` }
+                  ],
+                  temperature: 0.3,
+                  max_tokens: 20,
                 });
-                generatedTitle = titleResult.response.text().trim().replace(/["'.]/g, '');
+                generatedTitle = titleCompletion.choices[0].message.content.trim().replace(/["'.]/g, '');
               } catch (titleErr) {
                 // Fallback to clean substring
                 generatedTitle = currentMessage.replace(/[^\w\s]/gi, '').substring(0, 40).trim();
@@ -122,11 +98,7 @@ exports.askAI = async (req, res) => {
               conversation.title = generatedTitle || "Technical Inquiry";
             }
 
-            conversation.messages.push({ 
-              role: 'user', 
-              content: currentMessage,
-              fileUrl: file ? `/uploads/${file.filename}` : undefined 
-            });
+            conversation.messages.push({ role: 'user', content: currentMessage });
             conversation.messages.push({ role: 'ai', content: reply });
             conversation.lastMessage = reply;
             await conversation.save();
@@ -139,32 +111,15 @@ exports.askAI = async (req, res) => {
       }
 
       return res.json({ reply, generatedTitle });
-    } catch (geminiError) {
-      console.error("GEMINI AI ERROR:", geminiError.message);
-      
-      // 🔄 Fallback to Groq for text-only if Gemini fails (Groq doesn't support files easily in this flow)
-      if (file) throw geminiError; // Cannot fallback for files
-
-      console.time("Groq Fallback Time");
-      const completion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: "You are a concise programming tutor. Max 3 sentences." },
-          { role: "user", content: systemInstruction + "\n\n" + (message || "") },
-        ],
-        temperature: 0.7,
-        max_tokens: 400,
-      });
-      
-      const reply = completion.choices[0].message.content;
-      console.timeEnd("Groq Fallback Time");
-      return res.json({ reply });
+    } catch (groqError) {
+      console.error("GROQ AI ERROR:", groqError.message);
+      return res.status(500).json({ reply: "⚠️ AI is currently unavailable. Please try again later." });
     }
 
   } catch (error) {
     console.error("TOTAL AI FAILURE:", error.message);
     res.status(500).json({
-      reply: "⚠️ AI is currently unavailable or the file type is unsupported. Please try again later.",
+      reply: "⚠️ AI is currently unavailable. Please try again later.",
     });
   }
 };

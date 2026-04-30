@@ -68,8 +68,9 @@ const AIPanel = () => {
     setLoading(true);
 
     try {
-      const reply = await chatWithAI(promptText, language, "Student", currentContext, fileToSend);
-      setMessages(prev => [...prev, { role: 'ai', content: reply }]);
+      const data = await chatWithAI(promptText, language, "Student", currentContext, fileToSend);
+      const aiReply = data?.reply || data;
+      setMessages(prev => [...prev, { role: 'ai', content: aiReply }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'ai', content: "Sorry, I'm having trouble connecting right now." }]);
     } finally {
